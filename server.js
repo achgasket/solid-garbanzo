@@ -47,7 +47,8 @@ const THREE_DIR = path.join(ROOT_DIR, 'node_modules', 'three', 'build');
 /** Post-processing passes (bloom) ship with Three.js as separate modules. */
 const THREE_ADDONS_DIR = path.join(ROOT_DIR, 'node_modules', 'three', 'examples', 'jsm');
 const PORT = envInt('PORT', 3000);
-const QUEUE_TIMEOUT_MS = envInt('QUEUE_TIMEOUT_MS', 60_000);
+/** The search for a human rival: one minute, as the lobby promises. No environment variable stretches it. */
+const QUEUE_TIMEOUT_MS = MATCH.queueTimeoutMs;
 const MATCH_COUNTDOWN_MS = envInt('MATCH_COUNTDOWN_MS', 5_000);
 /** How long past the countdown a match waits for a player whose battlefield is still loading. */
 const MATCH_LOAD_GRACE_MS = envInt('MATCH_LOAD_GRACE_MS', 30_000);
