@@ -17,7 +17,8 @@
 }
 
 body[data-phase='game'] .app,
-body[data-phase='game'] #backdrop {
+body[data-phase='game'] .stage-sky,
+body[data-phase='game'] #stage {
   display: none;
 }
 
@@ -619,6 +620,16 @@ body[data-phase='game'] #backdrop {
   background: #0a0f22;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* The four abilities deal in as the bar is built. (The lobby's stylesheet once gave them this by sharing the class name.) */
+.skill.ability {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 5px;
+  outline: none;
+  animation: card-in 0.4s var(--ease-out) both;
 }
 
 .skill.item {

@@ -92,6 +92,9 @@ export const MATCH = {
  *   cleave  a cone in front of the hero; `burn` keeps hurting what it hit
  *   spikes  a line from the hero towards the cursor
  *   meteor  lands at the cursor after `delayMs`; `burn` scorches the ground afterwards
+ *
+ * `faction` is the realm a champion hails from. It colours the lobby around it and
+ * nothing else: in a match a champion fights for whichever side its player is on.
  */
 export const CHAMPIONS = {
   aether_knight: {
@@ -99,6 +102,7 @@ export const CHAMPIONS = {
     name: 'Aether Knight',
     title: 'Rift-forged Vanguard',
     role: 'Melee Vanguard',
+    faction: 'radiant',
     description:
       'A rift-forged champion who leads every charge: he dashes through the line, shrugs off a burst behind his shield and calls lightning and holy fire onto the field.',
     abilities: [
@@ -162,6 +166,7 @@ export const CHAMPIONS = {
     name: 'Morgath',
     title: 'Ember Tyrant',
     role: 'Ember Tyrant',
+    faction: 'dire',
     description:
       'A molten warlord who stands his ground: his cleave sets the line alight, his cloak burns whoever dares come close, and stone and sky answer his call.',
     abilities: [
