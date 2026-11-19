@@ -752,10 +752,11 @@ function createModel(champion, side, { envMap, glowTexture }) {
       rig.texture.needsUpdate = true;
 
       // The cloak is flung back by running and by the lunge of a blow, and swings out of a turn.
+      // `view.wind` (the lobby's stage sets it; a battle does not) stirs it where the hero only stands.
       const turned = heading === null || dt <= 0 ? 0 : (((view.facing - heading + Math.PI) % TAU) + TAU) % TAU - Math.PI;
       heading = view.facing;
       const step = Math.min(dt, 0.05);
-      const wantLift = Math.min(1, view.moving * 0.72 + Math.max(0, -view.strike) * 0.5);
+      const wantLift = Math.min(1, view.moving * 0.72 + Math.max(0, -view.strike) * 0.5 + (view.wind ?? 0));
       liftSpeed += ((wantLift - lift) * 60 - liftSpeed * 9) * step;
       lift = Math.min(1.2, Math.max(0, lift + liftSpeed * step));
       const wantSway = step > 0 ? Math.max(-0.5, Math.min(0.5, (turned / step) * 0.06)) : 0;
@@ -821,10 +822,11 @@ function createModel(champion, side, { envMap, glowTexture }) {
  * `gait`, `moving`, `strike`, `phase` and `facing`.
  *
  * Every model is built up front, so choosing a champion at the start of a match
- * compiles and uploads nothing.
+ * compiles and uploads nothing. `champions` builds only those named: the lobby's
+ * stage shows one champion a side, and has no use for the rest.
  */
-export function buildHero(side, { envMap, glowTexture }) {
-  const models = new Map(HERO_MODELS.map((champion) => [champion, createModel(champion, side, { envMap, glowTexture })]));
+export function buildHero(side, { envMap, glowTexture, champions = HERO_MODELS }) {
+  const models = new Map(champions.map((champion) => [champion, createModel(champion, side, { envMap, glowTexture })]));
   const body = new THREE.Group();
   const effects = new THREE.Group();
   for (const model of models.values()) {
@@ -902,6 +904,7 @@ export function buildHero(side, { envMap, glowTexture }) {
       return copy;
     },
   };
-  hero.setChampion(HERO_MODELS[side === 'radiant' ? 0 : 1]);
+  const first = HERO_MODELS[side === 'radiant' ? 0 : 1];
+  hero.setChampion(models.has(first) ? first : champions[0]);
   return hero;
 }

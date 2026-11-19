@@ -6,20 +6,23 @@
   <meta name="theme-color" content="#05070f">
   <meta name="description" content="RuneDeck — a real-time tactical lane battler. Command your Hero, deploy your deck, shatter the Ancient Throne.">
   <title>RuneDeck — Tactical Lane Battler</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M24 3 45 24 24 45 3 24Z' fill='%230a0f1f' stroke='%23e3b755' stroke-width='3'/%3E%3Cpath d='M24 9 9 24 24 39Z' fill='%2338c6f4'/%3E%3Cpath d='M24 9 39 24 24 39Z' fill='%23f0413a'/%3E%3Cpath d='M24 4v40' stroke='%23eaffff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M24 2.5 42.5 8.5V23c0 11-7.4 18.6-18.5 22.5C12.9 41.6 5.5 34 5.5 23V8.5Z' fill='%230a0f1f' stroke='%23e3b755' stroke-width='3' stroke-linejoin='round'/%3E%3Cpath d='M24 7.2 10 11.8V23c0 8.6 5.6 14.6 14 17.9Z' fill='%2338c6f4'/%3E%3Cpath d='M24 7.2 38 11.8V23c0 8.6-5.6 14.6-14 17.9Z' fill='%23f0413a'/%3E%3Cpath d='M24 5v38' stroke='%23eaffff' stroke-width='2'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Rajdhani:wght@500;600;700&display=swap">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="lobby.css">
   <link rel="stylesheet" href="hud.css">
   <script type="importmap">{ "imports": { "three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/" } }</script>
 </head>
-<body data-phase="lobby">
-  <canvas id="backdrop" aria-hidden="true"></canvas>
+<body data-phase="lobby" data-tab="play" data-realm="radiant">
+  <!-- The lobby's stage: the hall the chosen champion stands in (lobby-stage.js), over a sky that holds the page until it is drawn. -->
+  <div class="stage-sky" aria-hidden="true"></div>
+  <canvas id="stage" aria-hidden="true"></canvas>
 
   <!-- ===================================================== Lobby -->
   <div class="app" id="app">
-    <header class="topbar glass" aria-label="Loadout">
+    <header class="nav">
       <div class="brand">
         <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
           <defs>
@@ -33,81 +36,200 @@
               <stop offset="0" stop-color="#ffb07a"/><stop offset="1" stop-color="#b3161c"/>
             </linearGradient>
           </defs>
-          <path d="M24 3 45 24 24 45 3 24Z" fill="#0a0f1f" stroke="url(#bm-gold)" stroke-width="2.6" stroke-linejoin="round"/>
-          <path d="M24 9 9 24 24 39Z" fill="url(#bm-radiant)"/>
-          <path d="M24 9 39 24 24 39Z" fill="url(#bm-dire)"/>
-          <path d="M24 4v40" stroke="#eaffff" stroke-width="1.6"/>
+          <path d="M24 2.5 42.5 8.5V23c0 11-7.4 18.6-18.5 22.5C12.9 41.6 5.5 34 5.5 23V8.5Z" fill="#0a0f1f" stroke="url(#bm-gold)" stroke-width="2.6" stroke-linejoin="round"/>
+          <path d="M24 7.2 10 11.8V23c0 8.6 5.6 14.6 14 17.9Z" fill="url(#bm-radiant)"/>
+          <path d="M24 7.2 38 11.8V23c0 8.6-5.6 14.6-14 17.9Z" fill="url(#bm-dire)"/>
+          <path d="M24 5v38" stroke="#eaffff" stroke-width="1.6"/>
+          <path d="M24 16.5 29 23.5 24 30.5 19 23.5Z" fill="#0a0f1f" stroke="url(#bm-gold)" stroke-width="1.6" stroke-linejoin="round"/>
         </svg>
         <div class="brand-text">
-          <span class="brand-name">RuneDeck</span>
+          <h1 class="brand-name">RuneDeck</h1>
           <span class="brand-sub">Lane Battler</span>
         </div>
       </div>
 
-      <div class="slot slot-nickname">
-        <label class="field-label" for="nickname">Player Nickname</label>
-        <div class="nick-field">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
+      <div class="tabs" id="tabs" role="tablist" aria-label="Lobby">
+        <button class="tab" id="tab-play" type="button" role="tab" data-tab="play" aria-controls="screen-play" aria-selected="true">Play</button>
+        <button class="tab" id="tab-heroes" type="button" role="tab" data-tab="heroes" aria-controls="screen-heroes" aria-selected="false" tabindex="-1">Heroes</button>
+        <button class="tab" id="tab-deck" type="button" role="tab" data-tab="deck" aria-controls="screen-deck" aria-selected="false" tabindex="-1">Deck</button>
+        <button class="tab" id="tab-codex" type="button" role="tab" data-tab="codex" aria-controls="screen-codex" aria-selected="false" tabindex="-1">Codex</button>
+      </div>
+
+      <div class="nav-tools">
+        <label class="nick" title="Your nickname. Click to change it.">
+          <svg class="nick-mark" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 2 20 12 12 22 4 12Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
             <path d="M12 7v10M8.5 12h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
           </svg>
+          <span class="sr-only">Player nickname</span>
           <input id="nickname" name="nickname" type="text" maxlength="16" autocomplete="nickname"
-                 spellcheck="false" enterkeyhint="go" placeholder="Enter your name">
-        </div>
-      </div>
-
-      <div class="slot slot-hero">
-        <span class="field-label" id="champion-label">Champion</span>
-        <div class="champions" id="champions" role="radiogroup" aria-labelledby="champion-label"></div>
-      </div>
-
-      <div class="slot slot-abilities">
-        <span class="field-label">Abilities</span>
-        <ul class="abilities" id="champion-abilities"></ul>
-      </div>
-
-      <div class="slot slot-audio">
-        <span class="field-label" id="lobby-audio-label">Audio</span>
-        <div id="lobby-mixer" role="group" aria-labelledby="lobby-audio-label"></div>
+                 spellcheck="false" enterkeyhint="done" placeholder="Enter your name">
+          <svg class="nick-edit" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m4 20 1-4.6L16.4 4a2 2 0 0 1 2.9 0l.7.7a2 2 0 0 1 0 2.9L8.6 19Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </label>
+        <div id="lobby-mixer" role="group" aria-label="Audio"></div>
       </div>
     </header>
 
-    <main class="stage">
-      <div class="emblem-row">
-        <div class="faction radiant">
-          <span class="faction-name">Radiant</span>
-          <span class="faction-desc">Crystal Sanctum · Left</span>
-        </div>
-        <div class="emblem-slot" id="emblem-slot" role="img" aria-label="Split Radiant and Dire emblem"></div>
-        <div class="faction dire">
-          <span class="faction-name">Dire</span>
-          <span class="faction-desc">Molten Obsidian · Right</span>
-        </div>
-      </div>
+    <main class="screens">
+      <!-- ................................................. PLAY -->
+      <section class="screen screen-play" id="screen-play" role="tabpanel" aria-labelledby="tab-play">
+        <div class="hero-spot" aria-hidden="true"></div>
 
-      <h1 class="title">RuneDeck</h1>
-      <p class="tagline"><span>Tactical Lane Battler</span></p>
+        <div class="nameplate">
+          <span class="realm-tag" id="plate-realm">Radiant</span>
+          <p class="nameplate-name" id="plate-name">Aether Knight</p>
+          <p class="nameplate-title" id="plate-title">Rift-forged Vanguard</p>
+        </div>
 
-      <section class="builder glass" aria-labelledby="builder-title">
-        <div class="builder-meta">
-          <span class="field-label" id="builder-title">Battle Deck</span>
-          <span class="deck-count" id="deck-count">6 Cards</span>
-          <span class="deck-avg"><i class="elixir-drop" aria-hidden="true"></i><span id="deck-avg">–</span> Avg Elixir</span>
-        </div>
-        <ul class="deck" id="deck" aria-label="Battle Deck"></ul>
-        <div class="reserve">
-          <span class="field-label" id="reserve-title">Reserve</span>
-          <ul class="deck" id="reserve" aria-labelledby="reserve-title"></ul>
-        </div>
-        <p class="builder-hint" id="builder-hint" role="status"></p>
+        <aside class="play-side" aria-label="Ready check">
+          <section class="loadout glass" aria-labelledby="loadout-title">
+            <h2 class="panel-title" id="loadout-title">Battle Loadout</h2>
+
+            <div class="loadout-part">
+              <div class="loadout-head">
+                <span class="field-label">Active Champion</span>
+                <button class="btn btn-link" id="btn-change-hero" type="button">Change Hero <span aria-hidden="true">→</span></button>
+              </div>
+              <div class="loadout-hero">
+                <span class="loadout-portrait" id="loadout-portrait"></span>
+                <div class="loadout-who">
+                  <strong class="loadout-name" id="loadout-name">Aether Knight</strong>
+                  <span class="loadout-role" id="loadout-role">Melee Vanguard</span>
+                </div>
+                <span class="realm-tag" id="loadout-realm">Radiant</span>
+              </div>
+            </div>
+
+            <div class="loadout-part">
+              <div class="loadout-head">
+                <span class="field-label">Battle Deck</span>
+                <span class="avg-badge" title="Average Elixir cost of the Battle Deck"><i class="elixir-drop" aria-hidden="true"></i><b id="loadout-avg">–</b> Avg Elixir</span>
+                <button class="btn btn-link" id="btn-edit-deck" type="button">Edit Deck <span aria-hidden="true">→</span></button>
+              </div>
+              <ul class="mini-deck" id="loadout-deck" aria-label="Battle Deck"></ul>
+            </div>
+
+            <p class="mode-pill">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l11 11M20 4 9 15M13.5 17.5l4-4M6.5 13.5l4 4M17 17l3 3M7 17l-3 3"/></svg>
+              <span>1v1 Tactical Lane Battle</span><i aria-hidden="true">•</i><span>AI Bot fallback at <b id="mode-limit">01:00</b></span>
+            </p>
+          </section>
+
+          <div class="cta">
+            <button class="btn btn-find" id="btn-find" type="button" disabled>
+              <span class="btn-face">Find Match</span>
+            </button>
+          </div>
+        </aside>
       </section>
 
-      <div class="cta">
-        <button class="btn btn-find" id="btn-find" type="button" disabled>
-          <span class="btn-face">Find Match</span>
-        </button>
-      </div>
-      <p class="mode-line" id="mode-line">1v1 real-time PvP · An AI challenger takes the field if no rival appears within 60 seconds</p>
+      <!-- ................................................. HEROES -->
+      <section class="screen screen-heroes" id="screen-heroes" role="tabpanel" aria-labelledby="tab-heroes" hidden>
+        <aside class="roster glass" aria-labelledby="roster-title">
+          <div class="panel-head">
+            <h2 class="panel-title" id="roster-title">Champions</h2>
+            <span class="panel-count" id="roster-count"></span>
+          </div>
+          <ul class="roster-list" id="roster" role="radiogroup" aria-labelledby="roster-title"></ul>
+        </aside>
+
+        <div class="inspect">
+          <div class="hero-turn" id="hero-turn" tabindex="0" role="group" aria-label="The champion on its pedestal. Drag, or press the left and right arrow keys, to turn it.">
+            <div class="hero-spot" aria-hidden="true"></div>
+          </div>
+          <p class="turn-hint">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 8.7C4.9 9.4 3.5 10.6 3.5 12c0 2.2 3.8 4 8.5 4s8.5-1.8 8.5-4-3.8-4-8.5-4"/><path d="M14.6 5.4 12 8l2.6 2.6"/></svg>
+            Drag Hero to Rotate 360°
+          </p>
+        </div>
+
+        <aside class="sheet glass" id="sheet" aria-labelledby="sheet-name">
+          <div class="sheet-tags">
+            <span class="realm-tag" id="sheet-realm"></span>
+            <span class="role-tag" id="sheet-role"></span>
+          </div>
+          <h2 class="sheet-name" id="sheet-name"></h2>
+          <p class="sheet-lore" id="sheet-lore"></p>
+
+          <dl class="meters" id="sheet-meters">
+            <div class="meter" data-stat="health" style="--i: 0"><dt>Health</dt><dd><span class="meter-track"><i class="meter-fill"></i></span><b class="meter-value">0</b></dd></div>
+            <div class="meter" data-stat="mana" style="--i: 1"><dt>Mana</dt><dd><span class="meter-track"><i class="meter-fill"></i></span><b class="meter-value">0</b></dd></div>
+            <div class="meter" data-stat="attack" style="--i: 2"><dt>Attack</dt><dd><span class="meter-track"><i class="meter-fill"></i></span><b class="meter-value">0</b></dd></div>
+            <div class="meter" data-stat="mobility" style="--i: 3"><dt>Mobility</dt><dd><span class="meter-track"><i class="meter-fill"></i></span><b class="meter-value">0</b></dd></div>
+          </dl>
+
+          <span class="field-label" id="kit-title">Abilities</span>
+          <ul class="kit" id="sheet-kit" aria-labelledby="kit-title"></ul>
+
+          <button class="btn btn-equip" id="btn-equip" type="button">
+            <span class="btn-face"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><span id="equip-label">Equip Champion</span></span>
+          </button>
+        </aside>
+      </section>
+
+      <!-- ................................................. DECK -->
+      <section class="screen screen-deck" id="screen-deck" role="tabpanel" aria-labelledby="tab-deck" hidden>
+        <div class="hero-spot" aria-hidden="true"></div>
+
+        <section class="shell glass builder" aria-labelledby="builder-title">
+          <div class="shell-head">
+            <div class="shell-heading">
+              <span class="field-label">Deck</span>
+              <h2 class="shell-title" id="builder-title">Battle Deck</h2>
+            </div>
+            <div class="builder-meta">
+              <span class="deck-count" id="deck-count">6 Cards</span>
+              <span class="avg-badge"><i class="elixir-drop" aria-hidden="true"></i><b id="deck-avg">–</b> Avg Elixir</span>
+            </div>
+          </div>
+
+          <ul class="deck" id="deck" aria-label="Battle Deck"></ul>
+          <div class="reserve">
+            <span class="field-label" id="reserve-title">Reserve</span>
+            <ul class="deck" id="reserve" aria-labelledby="reserve-title"></ul>
+          </div>
+          <p class="builder-hint" id="builder-hint" role="status"></p>
+
+          <p class="shell-note"><span class="soon-tag">Coming Soon</span>The full Deck Forge is on its way. Until it opens, swap cards here: your Battle Deck is saved as you go.</p>
+        </section>
+      </section>
+
+      <!-- ................................................. CODEX -->
+      <section class="screen screen-codex" id="screen-codex" role="tabpanel" aria-labelledby="tab-codex" hidden>
+        <div class="hero-spot" aria-hidden="true"></div>
+
+        <section class="shell glass codex" aria-labelledby="codex-title">
+          <div class="shell-head">
+            <div class="shell-heading">
+              <span class="field-label">Codex</span>
+              <h2 class="shell-title" id="codex-title">Chronicle of the Realm</h2>
+            </div>
+            <span class="soon-tag">Coming Soon</span>
+          </div>
+
+          <p class="shell-lead">The scribes are still at work. When the Codex opens, everything worth knowing before a battle will be written here.</p>
+          <ul class="codex-list">
+            <li class="codex-entry">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-8a7 7 0 0 1 14 0v8M9 20v-6h6v6M12 5V2.5"/></svg>
+              <strong>Champions</strong><span>The story and the kit of every hero</span>
+            </li>
+            <li class="codex-entry">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6.5h9.5a1.5 1.5 0 0 1 1.5 1.5v11.5a1.5 1.5 0 0 1-1.5 1.5H8a1.5 1.5 0 0 1-1.5-1.5V8A1.5 1.5 0 0 1 8 6.5ZM9.5 3.5h-3A1.5 1.5 0 0 0 5 5v11"/></svg>
+              <strong>Cards</strong><span>Every troop, spell and building</span>
+            </li>
+            <li class="codex-entry">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 19.5 12 12 21.5 4.5 12ZM12 8v8M9 12h6"/></svg>
+              <strong>Runes &amp; Relics</strong><span>What the River and the forge grant</span>
+            </li>
+            <li class="codex-entry">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V9l-1.5-1V4H7v1.5h3V4h4v1.5h3V4h2.5v4L18 9v12ZM10 21v-5a2 2 0 0 1 4 0v5"/></svg>
+              <strong>Battlefield</strong><span>The lanes, the Towers and the Ancient Throne</span>
+            </li>
+          </ul>
+        </section>
+      </section>
     </main>
 
     <footer class="statusbar">
