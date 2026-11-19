@@ -17,9 +17,10 @@
  * A change of intensity takes hold on the next beat (the change of key on the
  * next bar), so it never lands across the music.
  *
- * Notes are scheduled a fraction of a second ahead of the audio clock from a
- * timer. Browsers slow the timers of a hidden tab, so the music is hushed there
- * (`hush`) and picks its place up again when the player comes back.
+ * Notes are scheduled a little ahead of the audio clock from a timer (the lobby
+ * further ahead than the battle: see `LOOKAHEAD`). Browsers slow the timers of
+ * a hidden tab, so the music is hushed there (`hush`) and picks its place up
+ * again when the player comes back.
  */
 
 const hz = (note) => 440 * 2 ** ((note - 69) / 12);
@@ -28,8 +29,13 @@ const pickOther = (list, last) => {
   return list.length > 1 && list[at] === last ? list[(at + 1) % list.length] : list[at];
 };
 
-/** How far ahead of the audio clock notes are scheduled, and how often the scheduler looks. */
-const LOOKAHEAD = 0.35;
+/**
+ * How far ahead of the audio clock each theme's notes are scheduled, and how often the scheduler looks.
+ * The battle keeps close to the clock, so that a change of intensity is heard at once. The lobby has
+ * nothing to answer to, and it plays while the battlefield loads and holds the page's timers up for
+ * long moments: it is scheduled far enough ahead to play through them.
+ */
+const LOOKAHEAD = { lobby: 1.5, battle: 0.35 };
 const TICK_MS = 90;
 /** A theme that has been faded out is no longer scheduled after this long. */
 const SILENT_AFTER = 5;
@@ -485,7 +491,7 @@ export function createMusic(ctx, out, hall, { live = true } = {}) {
     const send = ctx.createGain();
     send.gain.value = wetness;
     wet.connect(send).connect(fadeEcho);
-    return { name, fade, fadeEcho, score: build(dry, wet), active: false, step: 0, next: 0, silentAt: Infinity };
+    return { name, fade, fadeEcho, score: build(dry, wet), ahead: LOOKAHEAD[name], active: false, step: 0, next: 0, silentAt: Infinity };
   }
 
   const players = [
@@ -493,7 +499,7 @@ export function createMusic(ctx, out, hall, { live = true } = {}) {
     player('battle', 0.35, (dry, wet) => createBattle(kit, dry, wet, () => intensity)),
   ];
 
-  /** Schedules every step that begins before `until`. */
+  /** Schedules every step that begins before `until`, or as far ahead of the clock as each theme is kept. */
   function advance(until) {
     const now = ctx.currentTime;
     let busy = false;
@@ -501,7 +507,8 @@ export function createMusic(ctx, out, hall, { live = true } = {}) {
       if (!one.active) continue;
       // The timer was held up (a busy page, a sleeping machine): skip what was missed rather than play it all at once.
       if (live && one.next < now - 0.05) one.next = now + 0.05;
-      while (one.next < until) {
+      const horizon = until ?? now + one.ahead;
+      while (one.next < horizon) {
         if (one.next >= one.silentAt) {
           one.active = false;
           break;
@@ -521,7 +528,7 @@ export function createMusic(ctx, out, hall, { live = true } = {}) {
       advance(ctx.length / ctx.sampleRate);
       return;
     }
-    const busy = !hushed && advance(ctx.currentTime + LOOKAHEAD);
+    const busy = !hushed && advance();
     if (busy && !timer) timer = setInterval(pump, TICK_MS);
     else if (!busy && timer) {
       clearInterval(timer);

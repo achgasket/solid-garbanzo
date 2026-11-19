@@ -633,7 +633,10 @@ export function createUnitLayer({ scene, envMap, view, heroes, fx, colors, glowT
       const heading = Math.atan2(target.x - view.x, target.z - view.z);
       fx.heroSlash(view.side, view.x + Math.sin(heading) * 0.75, view.y + 1.45, view.z + Math.cos(heading) * 0.75, heading);
       fx.sparks(target.x, target.y, target.z, colors.spell(view.side).slash, 7, 3, 0.32, 0.24);
-      if (view.flags & FLAG.lifesteal) fx.drain(target, { x: view.x, y: view.y + 1.3, z: view.z });
+      if (view.flags & FLAG.lifesteal) {
+        fx.drain(target, { x: view.x, y: view.y + 1.3, z: view.z });
+        fx.cue('drain', view.x, view.z);
+      }
     } else {
       // Dozens of troops swing every second, so their hits are a single cheap flash.
       fx.flash(target.x, target.y, target.z, 0xfff2c8, 1.1, 0.18);

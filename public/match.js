@@ -32,7 +32,12 @@
  *   1 2 3 4 or click a card                          arm a card, then left-click the battlefield to play it
  *   Drag a card onto the battlefield or minimap      play it where it is dropped
  *   Esc or right-click                               put an armed card back
- *   M, or the speaker button beside Leave Match      mute the sound (the button also steps the volume)
+ *   M, or the speaker beside Leave Match             mute all sound; the button next to it opens the Music and SFX volumes
+ *
+ * Sound
+ *   The battle theme takes over from the lobby's as the flyover begins, and drives harder as the
+ *   stakes rise: Double Elixir or a Throne under 40% health, then sudden death (or both of the
+ *   former at once). It falls silent for the closing shot; the lobby's theme returns under the summary.
  */
 
 import { breathe, createBattlefield } from './battlefield.js';
@@ -75,6 +80,25 @@ const CAST_CUES = {
   obsidian_spike: 'spikes',
   cataclysmic_meteor: 'meteor',
 };
+/** The sound of each card as it is played; a card not listed here has the plain deploy sound. */
+const CARD_CUES = {
+  footmen_squad: 'deployFootmen',
+  arcane_archer: 'deployArcher',
+  siege_golem: 'deployGolem',
+  frost_tower: 'deployFrost',
+  fireball: 'fireball',
+  healing_wave: 'healWave',
+  lightning_bolt: 'lightning',
+  valkyrie_spinner: 'deployValkyrie',
+};
+/** How loud the player's own card is when it is played (from the minimap) too far off screen to be heard from where it lands. */
+const FAR_CARD_GAIN = 0.4;
+/** Below this share of its health the player's hero is heard to be dying: a heartbeat, quicker the lower it falls. */
+const LOW_HEALTH = 0.25;
+/** A Throne below this share of its health raises the music. */
+const THRONE_DANGER = 0.4;
+/** How long the fanfare of a finished match has to itself before the lobby's theme comes in under the summary. */
+const FANFARE_MS = 4_500;
 const SIDE_NAME = { radiant: 'Radiant', dire: 'Dire' };
 
 /**
@@ -105,6 +129,9 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
   /** Whether Double Elixir and sudden death have been announced in this match. */
   let doubleElixir = false;
   let overtime = false;
+  /** Whether either Throne is close to falling: with the two above, what the music's intensity follows. */
+  let throneInDanger = false;
+  let fanfareTimer = 0;
   let snapshot = null;
   let snapshotAt = 0;
   /** Whole points of Elixir at the last frame, so that each one gained can be heard; null before the first. */
@@ -298,6 +325,8 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
       }
       field.fx.hit(def.id, before - hp >= HEAVY_HIT);
       if (before - hp >= HEAVY_HIT) sound.play('thud', { x: def.x, z: def.z });
+      // A warning bell for the player's own structures; the cue rings no more than once in ten seconds.
+      if (own) sound.playWorldSfx('alarm', def.x, def.z);
       hud.markStruck(index);
       const now = performance.now();
       if (now - (noticedAt.get(def.id) ?? -Infinity) > (own ? OWN_NOTICE_MS : ENEMY_NOTICE_MS)) {
@@ -305,6 +334,19 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
         hud.feed(`${ownerOf(def)} ${def.label} is under attack!`, own ? 'danger' : 'good');
       }
     });
+
+    // A Throne that has fallen ends the match, and the music does not relax for it.
+    throneInDanger = next.structures.some(([hp], index) => STRUCTURES[index].kind === 'throne' && hp < STRUCTURES[index].maxHp * THRONE_DANGER);
+    scoreMusic();
+    // The hero's own heart is heard once it is close to death, and faster the closer it comes.
+    const { hp, respawnMs } = next.you.hero;
+    const health = hp / HERO.maxHp;
+    sound.setHeartbeat(!finished && hp > 0 && respawnMs <= 0 && health < LOW_HEALTH ? Math.max(0.01, 1 - health / LOW_HEALTH) : 0);
+  }
+
+  /** The battle theme drives harder as the stakes rise: Double Elixir or a Throne in danger, then sudden death, or both of the former at once. */
+  function scoreMusic() {
+    sound.setIntensity(overtime || (doubleElixir && throneInDanger) ? 2 : doubleElixir || throneInDanger ? 1 : 0);
   }
 
   /* ---------------------------------------------------------------- Layout */
@@ -376,8 +418,9 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     intro = true;
     root.classList.add('intro');
     hud.cinema('overview');
-    // A war horn carries over the field as the flyover sets off.
+    // A war horn carries over the field as the flyover sets off, and the wind is heard for as long as the camera flies.
     sound.play('horn');
+    sound.play('wind', { seconds: ms / 1000 });
     camera.setFollow(null);
     camera.fly({
       from: { x: throne.x, z: throne.z },
@@ -420,6 +463,13 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     armed = slot;
     root.classList.toggle('arming', slot !== null);
     refreshPreview(slot === null ? null : aim());
+  }
+
+  /** The player takes a card up out of the hand, or with null puts the armed one back: either is heard. */
+  function chooseCard(slot) {
+    if (slot === armed) return;
+    sound.play(slot === null ? 'cardCancel' : 'cardArm');
+    setArmed(slot);
   }
 
   /** Draws the placement circle at `point`: green where the armed card may land, red where it may not. */
@@ -468,6 +518,8 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     const target = field.pickTarget(point.x, point.z, side);
     if (target) socket.emit('game:attack', { id: target });
     else socket.emit('game:move', { x: point.x, z: point.z });
+    // The order is felt under the cursor: a click in the ground, harder when it is an attack.
+    sound.play(target ? 'attackClick' : 'moveClick');
     field.fx.marker(point.x, point.z, Boolean(target));
     setWaypoint(target ? null : { x: point.x, z: point.z });
   }
@@ -531,9 +583,7 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     }
     if (event.repeat) return;
     if (event.code === 'Escape') {
-      setArmed(null);
-    } else if (event.code === 'KeyM') {
-      sound.toggleMute();
+      chooseCard(null);
     } else if (finished || intro) {
       return;
     } else if (event.code === 'Space') {
@@ -542,7 +592,7 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
       setLocked(!locked);
     } else if (event.code in CARD_KEYS) {
       const slot = CARD_KEYS[event.code];
-      setArmed(armed === slot ? null : slot);
+      chooseCard(armed === slot ? null : slot);
     } else if (event.code in ACTION_KEYS) {
       const key = ACTION_KEYS[event.code];
       if (abilities.has(key)) cast(key);
@@ -574,7 +624,7 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
   function clickField(button, clientX, clientY) {
     const point = field.pick(clientX, clientY);
     if (button === 0 && armed !== null) deploy(point);
-    else if (button === 2 && armed !== null) setArmed(null);
+    else if (button === 2 && armed !== null) chooseCard(null);
     else orderHero(point);
   }
 
@@ -646,7 +696,7 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     if (!drag.moved) {
       if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < DRAG_THRESHOLD_PX) return;
       drag.moved = true;
-      setArmed(drag.slot);
+      chooseCard(drag.slot);
       hud.showGhost(snapshot.you.hand[drag.slot], event.clientX, event.clientY);
     }
     hud.moveGhost(event.clientX, event.clientY);
@@ -658,18 +708,18 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     drag = null;
     hud.hideGhost();
     if (!moved) {
-      setArmed(armed === slot ? null : slot);
+      chooseCard(armed === slot ? null : slot);
       return;
     }
     const point = worldAt(event.clientX, event.clientY);
     if (point) deploy(point);
     // A drag that ends anywhere else, or on an invalid spot, puts the card back.
-    setArmed(null);
+    chooseCard(null);
   });
   hud.els.hand.addEventListener('pointercancel', () => {
     drag = null;
     hud.hideGhost();
-    setArmed(null);
+    chooseCard(null);
   });
 
   // Minimap: left-click or drag moves the camera there (or deploys the armed card); Alt-click drops a ping;
@@ -679,7 +729,7 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     const point = hud.minimapToWorld(event.clientX, event.clientY);
     if (!point || intro || finished) return;
     if (event.button === 2) {
-      if (armed !== null) setArmed(null);
+      if (armed !== null) chooseCard(null);
       else orderHero(point);
     } else if (event.button === 0 && armed !== null) {
       deploy(point);
@@ -729,15 +779,8 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     hud.els.leave.textContent = 'Confirm Leave';
     leaveTimer = setTimeout(resetLeaveButton, 3_000);
   });
-  // The speaker steps the volume down and then mutes; a tick confirms each step that can be heard.
-  hud.els.sound.addEventListener('click', () => {
-    sound.cycle();
-    sound.play('elixir');
-    hud.els.sound.blur();
-  });
-  sound.subscribe(hud.setSound);
-  // What the field itself reports: attacks, troops falling, the finale.
-  field.onCue = (name, x, z, detail) => sound.play(name, { x, z, ...detail });
+  // What the field itself reports: attacks, troops falling, the finale. Each is heard from where it happened.
+  field.onCue = (name, x, z, detail) => sound.playWorldSfx(name, x, z, detail);
   hud.els.resultButton.addEventListener('click', () => onExit());
   hud.els.playAgain.addEventListener('click', () => onPlayAgain());
 
@@ -753,6 +796,7 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
   function enterDoubleElixir() {
     if (doubleElixir) return;
     doubleElixir = true;
+    scoreMusic();
     hud.setDoubleElixir(true, true);
     hud.announce({ title: 'DOUBLE ELIXIR (2X)!', tone: 'elixir', sub: ['Elixir flows twice as fast'] });
     hud.feed('Double Elixir! Elixir now flows twice as fast.', 'gold');
@@ -762,6 +806,7 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
   function enterOvertime(ms) {
     if (overtime) return;
     overtime = true;
+    scoreMusic();
     const seconds = Math.round(ms / 1000);
     hud.announce({ title: 'SUDDEN DEATH OVERTIME!', tone: 'overtime', sub: [{ text: `+${clock(seconds)}`, gold: true }, ' The first Tower or Throne to fall loses'] });
     hud.feed('Sudden death! The first Tower or Throne to fall loses the match.', 'danger');
@@ -778,10 +823,11 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
         const card = CARD_BY_ID.get(event.card);
         if (!card) break;
         field.fx.card(card, event.side, event.x, event.z);
-        if (card.id === 'fireball') sound.play('fireball', { x: event.x, z: event.z, travel: card.travelMs / 1000 });
-        else if (card.id === 'lightning_bolt') sound.play('thunder', { x: event.x, z: event.z });
-        else if (card.heal) sound.play('healWave', { x: event.x, z: event.z });
-        else sound.play('deploy', { x: event.x, z: event.z, building: card.type === 'Building' });
+        // Every card has a sound of its own, heard from where it lands; the Fireball's lasts as long as its flight.
+        // The player's own card is still heard, faintly, when it lands too far off screen to carry.
+        const cue = CARD_CUES[card.id] ?? 'deploy';
+        const detail = card.travelMs ? { travel: card.travelMs / 1000 } : { building: card.type === 'Building' };
+        if (!sound.playWorldSfx(cue, event.x, event.z, detail) && mine) sound.play(cue, { ...detail, gain: FAR_CARD_GAIN });
         if (!mine) hud.feed(`Enemy ${card.type === 'Spell' ? 'cast' : 'deployed'} ${card.name}`, 'info');
         break;
       }
@@ -819,11 +865,12 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
         // A relic bought while respawning has no hero to light up.
         if (!event.bought || !field.heroView(event.side)?.dead) field.fx.item(event);
         if (event.bought) {
-          if (mine) sound.play('buy');
+          // The purse, and then the relic itself: light boots, or a blade drawn.
+          if (mine) sound.play('buy', { item: event.key });
           hud.feed(mine ? `${item.name} unlocked!` : `${heroName(event.side)} bought ${item.name}`, mine ? 'gold' : 'danger');
         } else if (event.rune) {
           const rune = RUNES[event.rune];
-          sound.play('drink', { x: event.x, z: event.z });
+          sound.play('drink', { x: event.x, z: event.z, rune: event.rune });
           hud.feed(mine ? `${rune.name}! ${rune.description}` : `${heroName(event.side)} drank ${aRune(event.rune)}!`, mine ? 'gold' : 'danger');
         } else {
           sound.play('blink', { x: event.tx, z: event.tz });
@@ -898,6 +945,9 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     if (!active || finished) return;
     finished = true;
     const mine = session;
+    // The music and the hero's heart fall silent: the closing shot is heard on its own.
+    sound.setMusic(null);
+    sound.setHeartbeat(0);
     // The match is decided: nothing the player held or armed may still act.
     setArmed(null);
     drag = null;
@@ -921,6 +971,8 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
     if (mine !== session) return;
     hud.cinema('off');
     sound.play(outcome);
+    // The fanfare has the stage to itself; then the lobby's theme comes in under the summary.
+    fanfareTimer = setTimeout(() => sound.setMusic('lobby'), FANFARE_MS);
     hud.showSummary({
       outcome,
       title: { draw: 'Draw', victory: 'Victory', defeat: 'Defeat' }[outcome],
@@ -948,6 +1000,10 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
       session++;
       doubleElixir = false;
       overtime = false;
+      throneInDanger = false;
+      clearTimeout(fanfareTimer);
+      // The battle theme takes over from the lobby's; the first snapshot says how hard it drives.
+      sound.setMusic('battle');
       side = start.side;
       players = start.players;
       abilities = new Map(champion(side).abilities.map((ability) => [ability.key, ability]));
@@ -990,6 +1046,9 @@ export async function createMatchView({ socket, sound, onExit, onPlayAgain, onPr
       session++;
       intro = false;
       clearTimeout(cinemaTimer);
+      clearTimeout(fanfareTimer);
+      sound.setHeartbeat(0);
+      sound.setIntensity(0);
       camera.land();
       hud.cinema('off');
       field.stop();

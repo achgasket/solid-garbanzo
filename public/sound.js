@@ -28,8 +28,9 @@
  * the least important one makes way for it, or it is dropped.
  *
  * Browsers only let a page make sound after the player has touched it, so the
- * engine starts on the first click or key press anywhere on the page. Until
- * then, and while muted or in a hidden tab, `play` does nothing.
+ * engine starts on the first click or key press anywhere on the page (and the
+ * sound of that touch itself is played the moment it has). Until then, and
+ * while muted or in a hidden tab, `play` does nothing.
  */
 
 import { createMusic } from './music.js';
@@ -58,6 +59,8 @@ const GROUP_CAP = { combat: 6, spell: 8, ui: 8 };
 const MAX_VOICES = 30;
 /** A voice counts against its group's cap for at most this long: a long tail does not hold a place. */
 const BUSY_MS = 600;
+/** A cue asked for while the audio context is starting is still worth playing if it starts within this long. */
+const WAKE_GRACE_MS = 400;
 
 const midi = (note) => 440 * 2 ** ((note - 69) / 12);
 const rand = (low, high) => low + Math.random() * (high - low);
@@ -1016,6 +1019,9 @@ export class SoundEngine {
   #intensity = 0;
   #heart = 0;
   #heartRate = 0;
+  /** While the context is starting, the cues asked of it wait to be played once it has: { name, place, detail, at }. */
+  #waking = false;
+  #waiting = [];
 
   /**
    * @param {{ context?: BaseAudioContext, persist?: boolean, library?: SampleLibrary | null }} [options]
@@ -1076,24 +1082,6 @@ export class SoundEngine {
     return this.#settings.sfx;
   }
 
-  /** What the HUD's speaker button shows: the SFX volume, and it as 0 (silent) to 3 bars. */
-  get volume() {
-    return this.#settings.sfx;
-  }
-
-  get level() {
-    const { sfx, muted } = this.#settings;
-    return muted || !sfx ? 0 : Math.min(3, Math.ceil(sfx * 3 - 1e-6));
-  }
-
-  /** The speaker button: steps the SFX volume down a bar at a time, then mutes, then returns to full. */
-  cycle() {
-    const { level } = this;
-    if (level === 0) this.setSfxVolume(1);
-    else if (level === 1) this.setMuted(true);
-    else this.setSfxVolume((level - 1) / 3);
-  }
-
   /** Calls `listener(engine)` now and whenever a volume or the mute switch changes. Returns a function that stops it. */
   subscribe(listener) {
     this.#listeners.add(listener);
@@ -1116,8 +1104,25 @@ export class SoundEngine {
       }
     }
     // A context can be suspended again, by the browser or the system: every later touch wakes it.
-    if (!this.#given && this.#ctx.state !== 'running') this.#ctx.resume?.().catch(() => {});
+    if (!this.#given && this.#ctx.state !== 'running') {
+      this.#waking = true;
+      this.#ctx.resume?.().then(
+        () => this.#woke(),
+        () => {
+          this.#waking = false;
+        },
+      );
+    }
     return true;
+  }
+
+  /** The context has started: what was asked for in the moment it took is played now. */
+  #woke() {
+    this.#waking = false;
+    const fresh = performance.now() - WAKE_GRACE_MS;
+    for (const { name, place, detail, at } of this.#waiting.splice(0)) {
+      if (at >= fresh) this.#start(name, place, detail);
+    }
   }
 
   setMuted(muted) {
@@ -1302,7 +1307,16 @@ export class SoundEngine {
   #start(name, place, { gain = 1, delay = 0, ...detail }) {
     const recipe = RECIPES[name];
     const mix = CUES[name];
-    if (!recipe || !mix || !this.ready || this.#settings.muted || !this.#settings.sfx) return false;
+    if (!recipe || !mix || this.#settings.muted || !this.#settings.sfx) return false;
+    if (!this.ready) {
+      // The context takes a moment to start after the touch that allowed it; that touch's own sound waits for it.
+      if (this.#waking) {
+        const now = performance.now();
+        this.#waiting = this.#waiting.filter((cue) => now - cue.at < WAKE_GRACE_MS);
+        this.#waiting.push({ name, place, detail: { gain, delay, ...detail }, at: now });
+      }
+      return false;
+    }
     if (!this.#given && document.hidden) return false;
     const ctx = this.#ctx;
     // Rationing runs on the wall clock: on a machine that is struggling the audio clock falls behind it.
