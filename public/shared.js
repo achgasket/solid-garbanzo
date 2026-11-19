@@ -77,6 +77,12 @@ export const MATCH = {
   deckSize: 6,
   /** Each side stops receiving lane waves above this many living units. */
   unitCap: 44,
+  /**
+   * How long a player searches for a human rival before an AI bot takes the other
+   * side. A rule of the game and not a setting: the server times the search by it
+   * and the lobby shows it (01:00), so the two cannot disagree.
+   */
+  queueTimeoutMs: 60_000,
 };
 
 /**
@@ -92,6 +98,14 @@ export const MATCH = {
  *   cleave  a cone in front of the hero; `burn` keeps hurting what it hit
  *   spikes  a line from the hero towards the cursor
  *   meteor  lands at the cursor after `delayMs`; `burn` scorches the ground afterwards
+ *
+ * `faction` is the realm a champion hails from. It colours the lobby around it and
+ * nothing else: in a match a champion fights for whichever side its player is on.
+ *
+ * `ratings` and each ability's `brief` are for the lobby's champion sheet alone.
+ * The ratings sum the kit up, each out of 100, for a player choosing between
+ * champions; the battle never reads them, and every hero has the same base
+ * figures (`HERO`, `UNITS.hero`). A `brief` is the ability in one line.
  */
 export const CHAMPIONS = {
   aether_knight: {
@@ -99,6 +113,8 @@ export const CHAMPIONS = {
     name: 'Aether Knight',
     title: 'Rift-forged Vanguard',
     role: 'Melee Vanguard',
+    faction: 'radiant',
+    ratings: { health: 85, mana: 60, attack: 70, mobility: 90 },
     description:
       'A rift-forged champion who leads every charge: he dashes through the line, shrugs off a burst behind his shield and calls lightning and holy fire onto the field.',
     abilities: [
@@ -112,6 +128,7 @@ export const CHAMPIONS = {
         range: 6,
         width: 1.6,
         damage: 130,
+        brief: 'Dash through the line, cutting every enemy in the path.',
         description: 'Dash towards the cursor, leaving an afterimage and slashing every enemy in the path.',
       },
       {
@@ -123,6 +140,7 @@ export const CHAMPIONS = {
         cooldownMs: 14_000,
         shield: 350,
         durationMs: 5_000,
+        brief: 'A golden sphere absorbs 350 damage for 5 seconds.',
         description: 'Surround the hero with a sphere of golden energy that absorbs 350 damage for 5 seconds.',
       },
       {
@@ -136,6 +154,7 @@ export const CHAMPIONS = {
         radius: 2.6,
         damage: 170,
         stunMs: 1_500,
+        brief: 'Lightning strikes an area and stuns for 1.5 seconds.',
         description: 'Call down a lightning bolt at the cursor that damages enemies in the area and stuns them for 1.5 seconds.',
       },
       {
@@ -153,6 +172,7 @@ export const CHAMPIONS = {
         durationMs: 3_000,
         tickMs: 500,
         ultimate: true,
+        brief: 'A pillar of light burns a wide area for 3 seconds.',
         description: 'Ultimate. A pillar of golden light descends at the cursor and burns every enemy inside it for 3 seconds.',
       },
     ],
@@ -162,6 +182,8 @@ export const CHAMPIONS = {
     name: 'Morgath',
     title: 'Ember Tyrant',
     role: 'Ember Tyrant',
+    faction: 'dire',
+    ratings: { health: 75, mana: 60, attack: 90, mobility: 45 },
     description:
       'A molten warlord who stands his ground: his cleave sets the line alight, his cloak burns whoever dares come close, and stone and sky answer his call.',
     abilities: [
@@ -178,6 +200,7 @@ export const CHAMPIONS = {
         damage: 110,
         /** Damage over time on everything the cleave hits, dealt in ticks of `tickMs`. */
         burn: { damage: 60, durationMs: 3_000, tickMs: 500 },
+        brief: 'A wide molten sweep that leaves enemies burning.',
         description: 'Sweep a molten blade through a wide arc towards the cursor. Enemies it hits keep burning for 3 seconds.',
       },
       {
@@ -193,6 +216,7 @@ export const CHAMPIONS = {
         auraRadius: 3,
         auraDamage: 14,
         tickMs: 500,
+        brief: 'Absorbs 220 damage and scorches enemies close by.',
         description: 'Wrap the hero in living fire that absorbs 220 damage. While it holds, for up to 5 seconds, it scorches every enemy close by.',
       },
       {
@@ -206,6 +230,7 @@ export const CHAMPIONS = {
         width: 2,
         damage: 150,
         stunMs: 1_200,
+        brief: 'A row of spikes impales and stuns for 1.2 seconds.',
         description: 'A row of obsidian spikes erupts from the ground towards the cursor, impaling and stunning enemies for 1.2 seconds.',
       },
       {
@@ -223,6 +248,7 @@ export const CHAMPIONS = {
         /** The crater keeps burning: damage dealt in ticks of `tickMs` to whatever stands in it. */
         burn: { damage: 120, durationMs: 3_000, tickMs: 500 },
         ultimate: true,
+        brief: 'A meteor stuns where it lands and leaves a burning crater.',
         description: 'Ultimate. Call a meteor down at the cursor. It lands after 1.2 seconds, stuns what it hits and leaves a burning crater for 3 seconds.',
       },
     ],
