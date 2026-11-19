@@ -367,76 +367,21 @@ body[data-phase='game'] #backdrop {
   box-shadow: 0 0 0.7em var(--rune, rgba(255, 200, 90, 0.95));
 }
 
-/* The top-right corner: the sound button, and the way out. */
+/* The top-right corner: the audio mixer (style.css), and the way out. */
 .hud-corner {
   position: absolute;
   top: 0.9em;
   right: 0.9em;
+  /* The mixer's panel opens over whatever lies below the corner. */
+  z-index: 5;
   display: flex;
   align-items: stretch;
   gap: 0.45em;
 }
 
-.hud-sound {
-  display: flex;
-  align-items: center;
-  gap: 0.3em;
-  padding: 0 0.5em;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 0.5em;
-  background: rgba(8, 12, 26, 0.85);
-  font-size: 0.75em;
-  color: var(--text-dim);
-  cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
-}
-
-.hud-sound:hover,
-.hud-sound:focus-visible {
-  border-color: var(--cyan-2);
-  color: var(--cyan-1);
-  outline: none;
-}
-
-.hud-sound svg {
-  width: 1.75em;
-  height: 1.75em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.hud-sound .snd-body {
-  fill: currentColor;
-  stroke: none;
-}
-
-.hud-sound kbd {
-  font-size: 0.85em;
-  opacity: 0.6;
-}
-
-/* The waves are the volume: three at full, fewer as it drops, a cross when muted. */
-.hud-sound .snd-off,
-.hud-sound[data-level='0'] .snd-wave {
-  display: none;
-}
-
-.hud-sound[data-level='0'] .snd-off {
-  display: block;
-}
-
-.hud-sound[data-level='1'] .w2,
-.hud-sound[data-level='1'] .w3,
-.hud-sound[data-level='2'] .w3 {
-  opacity: 0.2;
-}
-
-.hud-sound[data-level='0'] {
-  border-color: rgba(240, 65, 58, 0.55);
-  color: var(--crimson-1);
+/* Here the mixer's panel hangs from the corner itself: flush with its right edge, clear of the scoreboard. */
+.hud-corner .mixer {
+  position: static;
 }
 
 .hud-leave {

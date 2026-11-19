@@ -1740,7 +1740,8 @@ export async function createBattlefield(canvas, report = () => {}) {
     /**
      * Called with (name, x, z, detail) whenever something on the field makes a noise that no
      * server event announces: an attack ('sword', 'clang', 'bow', 'staff', 'frost', 'slam', 'spin',
-     * 'tower'), a troop falling ('fall'), and the finale ('rumble', 'blast', 'collapse').
+     * 'tower'), the Lifesteal Blade drinking ('drain'), a troop falling ('fall'), and the finale
+     * ('rumble', 'blast', 'collapse').
      */
     onCue: null,
 

@@ -2,9 +2,12 @@
    RuneDeck — lobby client
    Animated backdrop, loadout bar (nickname / hero / deck) and matchmaking.
    It also owns the sound engine, so that the first click anywhere on the page
-   (Find Match, usually) is what allows the battle to be heard.
+   (Find Match, usually) is what allows the battle to be heard: it starts the
+   lobby's music, gives the interface its ticks and clicks, and mounts the
+   audio mixer in the top bar and in the match HUD.
    ========================================================================== */
 
+import { bindMuteKey, createMixer } from './mixer.js';
 import { cardArt, iconArt, portraitArt } from './paint.js';
 import { CARDS, CHAMPIONS, CHAMPION_IDS, HERO, MATCH, sanitizeLoadout } from './shared.js';
 import { SoundEngine } from './sound.js';
@@ -18,6 +21,8 @@ const NICK_MAX_LENGTH = 16;
 const RING_CIRCUMFERENCE = 2 * Math.PI * 88;
 /** How long the queue modal shows its result before the versus screen takes over. */
 const RESOLVE_BEAT_MS = 900;
+/** How often the search for an opponent is heard: a radar pulse. */
+const QUEUE_PULSE_MS = 2_000;
 
 const QUEUE_MESSAGES = [
   'Scanning the realm for a worthy rival…',
@@ -705,11 +710,16 @@ const state = {
   pick: null,
   resolveTimer: 0,
   countdownTimer: 0,
+  pulseTimer: 0,
 };
 
 const backdrop = createBackdrop($('backdrop'), $('emblem-slot'));
-/** Synthesises every sound of a match. It wakes on the player's first click or key press. */
+/** Every sound and all the music of the game. It wakes on the player's first click or key press. */
 const sound = new SoundEngine();
+sound.setMusic('lobby');
+/** The same mixer twice: in the top bar, and beside Leave Match in the match HUD. */
+const mixers = [createMixer($('lobby-mixer'), sound), createMixer($('hud-mixer'), sound)];
+bindMuteKey(sound);
 const socket = typeof window.io === 'function' ? window.io() : null;
 
 function setPhase(phase) {
@@ -719,6 +729,7 @@ function setPhase(phase) {
   dom.app.inert = phase !== 'lobby';
   // The loadout is locked while queueing and playing; a half-made swap is dropped.
   if (phase !== 'lobby') clearPick();
+  for (const mixer of mixers) mixer.close();
   hideTooltip();
 }
 
@@ -730,6 +741,44 @@ function formatClock(ms) {
   const seconds = Math.floor(ms / 1000);
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Interface sounds                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Buttons that say something of their own when pressed; the plain click would only muddy it. */
+const OWN_VOICE = '#btn-find, .hero-chip, .deck-card, .hand-card, .skill, .mixer-mute';
+/** The match's own controls are passed over many times a minute: they do not tick under the pointer. */
+const NO_HOVER = '.hand-card, .skill';
+
+let hovered = null;
+/** Where the mouse last was. A button that turns up under a mouse that has not moved was redrawn, not found. */
+const mouseAt = { x: NaN, y: NaN };
+
+// Every button on the page ticks as the mouse comes over it, and latches when it is pressed.
+document.addEventListener('pointerover', (event) => {
+  if (event.pointerType !== 'mouse') return;
+  const button = event.target.closest?.('button') ?? null;
+  if (button === hovered) return;
+  hovered = button;
+  const moved = event.clientX !== mouseAt.x || event.clientY !== mouseAt.y;
+  if (moved && button && !button.disabled && !button.matches(NO_HOVER)) sound.play('uiHover');
+});
+// The browser reports what the mouse has come over before it reports the move, so `mouseAt` is still where it was.
+for (const type of ['pointermove', 'pointerdown', 'pointerup']) {
+  document.addEventListener(
+    type,
+    (event) => {
+      mouseAt.x = event.clientX;
+      mouseAt.y = event.clientY;
+    },
+    { capture: true, passive: true },
+  );
+}
+document.addEventListener('click', (event) => {
+  const button = event.target.closest?.('button');
+  if (button && !button.disabled && !button.matches(OWN_VOICE)) sound.play('uiClick');
+});
 
 /* -------------------------------------------------------------------------- */
 /* Toasts and tooltips                                                        */
@@ -932,10 +981,14 @@ function onChampionKey(event) {
 function selectChampion(id, moveFocus = false) {
   if (state.phase !== 'lobby') return;
   if (id !== state.loadout.hero) {
+    // Each champion answers in its own voice, and before the page is redrawn: sound does not wait for pictures.
+    sound.play('heroSelect', { hero: id });
     state.loadout.hero = id;
     storeLoadout();
     markChampion();
     renderAbilities();
+  } else {
+    sound.play('uiClick');
   }
   if (moveFocus) dom.champions.querySelector(`[data-champion="${id}"]`).focus();
 }
@@ -1049,8 +1102,10 @@ function onBuilderCard(id) {
   const card = CARDS_BY_ID[id];
 
   if (pick === id) {
+    sound.play('cardCancel');
     clearPick();
   } else if (pick === null || zoneOf(pick) === zoneOf(id)) {
+    sound.play('cardPick');
     state.pick = id;
     setBuilderHint(
       zoneOf(id) === 'reserve'
@@ -1065,6 +1120,9 @@ function onBuilderCard(id) {
 
 /** Both cards exchange places, so the deck keeps its size and its different cards. */
 function swapCards(a, b) {
+  // One card snaps into the deck, and the one it replaced lands in the Reserve a moment later.
+  sound.play('cardEquip');
+  sound.play('cardRemove', { delay: 0.13, gain: 0.8 });
   const { deck, reserve } = state.loadout;
   const [inDeck, inReserve] = zoneOf(a) === 'deck' ? [a, b] : [b, a];
   deck[deck.indexOf(inDeck)] = inReserve;
@@ -1075,12 +1133,14 @@ function swapCards(a, b) {
   renderBuilder({ flash: [inDeck, inReserve], focusId: b });
 }
 
+/** Puts down the card picked up in the deck builder. Returns whether there was one. */
 function clearPick() {
-  if (state.pick === null) return;
+  if (state.pick === null) return false;
   const id = state.pick;
   state.pick = null;
   setBuilderHint(BUILDER_HINT);
   renderBuilder({ focusId: id });
+  return true;
 }
 
 async function loadConfig(attempt = 0) {
@@ -1133,6 +1193,11 @@ function findMatch() {
   dom.queueModal.hidden = false;
   dom.cancelBtn.focus();
 
+  // The great door shuts behind the player, and the search is heard for as long as it runs.
+  sound.play('findMatch');
+  clearInterval(state.pulseTimer);
+  state.pulseTimer = setInterval(() => sound.play('queuePulse'), QUEUE_PULSE_MS);
+
   socket.emit('queue:join', { nickname, hero: state.loadout.hero, deck: state.loadout.deck });
   // Start on the battlefield while the search runs; it is often ready before an opponent is found.
   loadGameView().catch(() => {});
@@ -1167,9 +1232,10 @@ function tickQueue() {
 }
 
 function cancelQueue() {
-  if (state.phase !== 'queue' || state.match) return;
+  if (state.phase !== 'queue' || state.match) return false;
   socket.emit('queue:cancel');
   returnToLobby();
+  return true;
 }
 
 function onMatchFound(found) {
@@ -1181,6 +1247,8 @@ function onMatchFound(found) {
 
   const receivedAt = performance.now();
   state.queue.running = false;
+  clearInterval(state.pulseTimer);
+  sound.play('matchFound');
   state.match = { ...found, live: false, ready: { radiant: false, dire: false } };
   for (const side of ['radiant', 'dire']) state.match.ready[side] = found.players[side].isBot;
   announceReady(state.match);
@@ -1416,11 +1484,13 @@ function onMatchEnded({ reason }) {
 function returnToLobby() {
   clearTimeout(state.resolveTimer);
   clearInterval(state.countdownTimer);
+  clearInterval(state.pulseTimer);
   state.queue.running = false;
   state.match = null;
   dom.queueModal.hidden = true;
   dom.matchOverlay.hidden = true;
   gameView?.stop();
+  sound.setMusic('lobby');
   backdrop.setPaused(false);
   setPhase('lobby');
   backdrop.setEnergy(0);
@@ -1510,8 +1580,9 @@ dom.leaveBtn.addEventListener('click', leaveMatch);
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   hideTooltip();
-  clearPick();
-  cancelQueue();
+  // Putting a card down and calling off the search are heard, as their buttons are.
+  if (clearPick()) sound.play('cardCancel');
+  if (cancelQueue()) sound.play('uiClick');
 });
 window.addEventListener('resize', () => hideTooltip());
 window.addEventListener('scroll', () => hideTooltip(), { passive: true });

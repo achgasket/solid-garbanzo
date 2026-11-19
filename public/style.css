@@ -156,6 +156,8 @@ ul {
 /* ---------------------------------------------------------------- Top bar */
 
 .topbar {
+  /* Above the stage, so that the mixer's panel opens over it. */
+  z-index: 3;
   display: flex;
   align-items: stretch;
   padding: 12px 18px;
@@ -497,6 +499,204 @@ ul {
   text-align: center;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+/* Audio: the mixer, at the far end of the bar */
+
+.topbar > .slot-audio {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 7px;
+  flex: none;
+  margin-left: auto;
+}
+
+.slot-audio .mixer {
+  height: 42px;
+  font-size: 16px;
+}
+
+/* ---------------------------------------------------------------- Audio mixer */
+
+/* One widget (mixer.js) for the top bar and for the match HUD: sized in em, so it follows either. */
+.mixer {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0.4em;
+}
+
+.mixer-mute,
+.mixer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0 0.45em;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5em;
+  background: rgba(8, 12, 26, 0.85);
+  font: inherit;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.mixer-mute:hover,
+.mixer-mute:focus-visible,
+.mixer-toggle:hover,
+.mixer-toggle:focus-visible,
+.mixer-toggle[aria-expanded='true'] {
+  border-color: var(--cyan-2);
+  color: var(--cyan-1);
+  outline: none;
+}
+
+.mixer svg {
+  width: 1.3em;
+  height: 1.3em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mixer .snd-body {
+  fill: currentColor;
+  stroke: none;
+}
+
+.mixer .mixer-knob {
+  stroke-width: 3.2;
+}
+
+.mixer kbd {
+  font-family: var(--font-ui);
+  font-size: 0.64em;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+/* The waves are the volume: three at full, fewer as it drops, a cross when nothing can be heard. */
+.mixer .snd-off,
+.mixer[data-level='0'] .snd-wave {
+  display: none;
+}
+
+.mixer[data-level='0'] .snd-off {
+  display: block;
+}
+
+.mixer[data-level='1'] .w2,
+.mixer[data-level='1'] .w3,
+.mixer[data-level='2'] .w3 {
+  opacity: 0.2;
+}
+
+.mixer[data-level='0'] .mixer-mute {
+  border-color: rgba(240, 65, 58, 0.55);
+  color: var(--crimson-1);
+}
+
+.mixer-panel {
+  position: absolute;
+  top: calc(100% + 0.5em);
+  right: 0;
+  display: grid;
+  gap: 0.6em;
+  width: 15em;
+  padding: 0.8em 0.9em;
+  border: 1px solid rgba(184, 246, 255, 0.28);
+  border-radius: 0.7em;
+  background: linear-gradient(180deg, rgba(21, 29, 56, 0.97), rgba(7, 10, 22, 0.98));
+  box-shadow: 0 0.8em 2em rgba(0, 0, 0, 0.6);
+  animation: fade-in 0.15s ease both;
+}
+
+.mixer-row {
+  display: grid;
+  grid-template-columns: 3.6em minmax(0, 1fr) 2.2em;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  transition: opacity 0.2s ease;
+}
+
+/* Muted: the volumes are kept, and moving either brings the sound back. */
+.mixer-mute[aria-pressed='true'] ~ .mixer-panel .mixer-row {
+  opacity: 0.55;
+}
+
+.mixer-row output {
+  text-align: right;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.mixer-row input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.4em;
+  margin: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+/* `--fill` is the slider's value: the track is lit as far as the thumb. */
+.mixer-row input::-webkit-slider-runnable-track {
+  height: 0.4em;
+  border-radius: 1em;
+  background: linear-gradient(90deg, var(--cyan-2) var(--fill, 50%), rgba(255, 255, 255, 0.16) var(--fill, 50%));
+}
+
+.mixer-row input::-moz-range-track {
+  height: 0.4em;
+  border-radius: 1em;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.mixer-row input::-moz-range-progress {
+  height: 0.4em;
+  border-radius: 1em;
+  background: var(--cyan-2);
+}
+
+.mixer-row input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 1.1em;
+  height: 1.1em;
+  margin-top: -0.35em;
+  border: 1px solid var(--gold-3);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--gold-1), var(--gold-2));
+  box-shadow: 0 0 0.6em rgba(227, 183, 85, 0.55);
+}
+
+.mixer-row input::-moz-range-thumb {
+  width: 1.1em;
+  height: 1.1em;
+  border: 1px solid var(--gold-3);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--gold-1), var(--gold-2));
+  box-shadow: 0 0 0.6em rgba(227, 183, 85, 0.55);
+}
+
+.mixer-row input:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 0.2em rgba(47, 211, 245, 0.6);
+}
+
+.mixer-row input:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 0.2em rgba(47, 211, 245, 0.6);
 }
 
 /* Battle Deck builder */
@@ -1700,11 +1900,19 @@ ul {
 
   .topbar > .slot-nickname,
   .topbar > .slot-hero,
-  .topbar > .slot-abilities {
+  .topbar > .slot-abilities,
+  .topbar > .slot-audio {
     flex-basis: 100%;
     margin-left: 0;
     padding-left: 0;
     border-left: 0;
+  }
+
+  /* The mixer keeps to one line: its name on the left, its buttons on the right. */
+  .topbar > .slot-audio {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .champions {

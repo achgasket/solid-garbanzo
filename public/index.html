@@ -65,6 +65,11 @@
         <span class="field-label">Abilities</span>
         <ul class="abilities" id="champion-abilities"></ul>
       </div>
+
+      <div class="slot slot-audio">
+        <span class="field-label" id="lobby-audio-label">Audio</span>
+        <div id="lobby-mixer" role="group" aria-labelledby="lobby-audio-label"></div>
+      </div>
     </header>
 
     <main class="stage">
@@ -225,16 +230,7 @@
       </header>
 
       <div class="hud-corner">
-        <button class="hud-sound" id="btn-sound" type="button" data-level="3" aria-pressed="false" aria-label="Sound">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path class="snd-body" d="M3 9.5h3.6l4.9-4v13l-4.9-4H3z"/>
-            <path class="snd-wave" d="M14.2 9.6a3.4 3.4 0 0 1 0 4.8"/>
-            <path class="snd-wave w2" d="M16.4 7.4a6.5 6.5 0 0 1 0 9.2"/>
-            <path class="snd-wave w3" d="M18.6 5.2a9.6 9.6 0 0 1 0 13.6"/>
-            <path class="snd-off" d="m15 9.5 5 5m0-5-5 5"/>
-          </svg>
-          <kbd>M</kbd>
-        </button>
+        <div id="hud-mixer"></div>
         <button class="hud-leave" id="btn-leave-match" type="button">Leave Match</button>
       </div>
 

@@ -7,8 +7,9 @@
  * footprint, the health bars that float above structures and heroes, the
  * numbers that float up from the field (damage, healing, gold), the cinematic
  * banner of the opening flyover, the announcer's banners (First Blood, a Tower
- * destroyed, Double Elixir, Sudden Death…), the sound button, the letterboxed
- * closing shot of a fallen Throne and the post-match summary.
+ * destroyed, Double Elixir, Sudden Death…), the letterboxed closing shot of a
+ * fallen Throne and the post-match summary. The audio mixer beside Leave Match
+ * is its own module (mixer.js).
  *
  * `render(view, now)` runs every frame, so it only touches the DOM when a
  * displayed value actually changes.
@@ -100,7 +101,6 @@ export function createHud({ sound = null } = {}) {
     rune: $('hud-rune'),
     runeText: $('hud-rune-text'),
     leave: $('btn-leave-match'),
-    sound: $('btn-sound'),
     respawn: $('hud-respawn'),
     feed: $('feed'),
     hint: $('hint'),
@@ -989,16 +989,6 @@ export function createHud({ sound = null } = {}) {
     /** Puts the banners `top` CSS pixels down the screen: just under the scoreboard. */
     placeAnnouncer(top) {
       els.announce.style.setProperty('--announce-top', `${Math.round(top)}px`);
-    },
-
-    /** Shows the sound button as the engine now is: its volume in bars, or crossed out when muted. */
-    setSound(engine) {
-      const { level } = engine;
-      els.sound.dataset.level = String(level);
-      els.sound.setAttribute('aria-pressed', String(level === 0));
-      const state = level === 0 ? 'Sound off' : `Sound ${Math.round(engine.volume * 100)}%`;
-      els.sound.title = `${state}. Click to change the volume, press M to mute.`;
-      els.sound.setAttribute('aria-label', state);
     },
 
     setDoubleElixir,
